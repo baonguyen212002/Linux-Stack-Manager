@@ -6,7 +6,7 @@ mod projects;
 
 use clap::Parser;
 use cli::{Cli, CliCommand};
-use commands::{check_service_status, check_supervisor_status, ngrok_service_action, run_artisan, run_command, run_command_streaming, show_log, show_ngrok_url, supervisor_action, sv_tail};
+use commands::{check_service_status, check_supervisor_status, ngrok_service_action, run_artisan, run_command, run_command_streaming, show_log, show_ngrok_url, supervisor_action, sv_tail, sv_tail_realtime};
 use projects::{load_nginx_config, load_ngrok_configs, load_projects};
 use error::AppError;
 
@@ -118,6 +118,9 @@ fn execute_cli(cmd: CliCommand) -> error::Result<()> {
         }
         CliCommand::SvLogs { process } => {
             sv_tail(&process)?;
+        }
+        CliCommand::SvLogsRealtime { process } => {
+            sv_tail_realtime(&process)?;
         }
         CliCommand::LaravelCacheClear { project } => {
             run_artisan_cli(&project, "cache:clear")?;

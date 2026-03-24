@@ -72,8 +72,13 @@ pub enum CliCommand {
     },
     /// Reload Supervisor config (reread & update)
     SvReload,
-    /// Xem logs process trong Supervisor
+    /// Xem logs process trong Supervisor (scroll, q de thoat)
     SvLogs {
+        /// Tên process
+        process: String,
+    },
+    /// Xem logs realtime trong Supervisor (Ctrl+C de thoat)
+    SvLogsRealtime {
         /// Tên process
         process: String,
     },

@@ -93,19 +93,22 @@ fn read_input(prompt: &str) -> InputResult {
     print!("{prompt}");
     io::stdout().flush().ok();
 
-    // Bật raw mode để bắt Esc ngay lập tức
+    // Bật raw mode + mouse capture để bắt Esc và tránh scroll tạo ký tự
     let _ = terminal::enable_raw_mode();
+    let _ = crossterm::execute!(io::stdout(), event::EnableMouseCapture);
 
     let mut buf = String::new();
     loop {
-        if let Ok(Event::Key(KeyEvent { code, modifiers, .. })) = event::read() {
-            match code {
+        match event::read() {
+            Ok(Event::Key(KeyEvent { code, modifiers, .. })) => match code {
                 KeyCode::Esc => {
+                    let _ = crossterm::execute!(io::stdout(), event::DisableMouseCapture);
                     let _ = terminal::disable_raw_mode();
                     println!();
                     return InputResult::Escape;
                 }
                 KeyCode::Char('c') if modifiers.contains(KeyModifiers::CONTROL) => {
+                    let _ = crossterm::execute!(io::stdout(), event::DisableMouseCapture);
                     let _ = terminal::disable_raw_mode();
                     println!();
                     return InputResult::Escape;
@@ -123,6 +126,7 @@ fn read_input(prompt: &str) -> InputResult {
                     }
                 }
                 KeyCode::Enter => {
+                    let _ = crossterm::execute!(io::stdout(), event::DisableMouseCapture);
                     let _ = terminal::disable_raw_mode();
                     println!();
                     return match buf.parse::<usize>() {
@@ -130,8 +134,9 @@ fn read_input(prompt: &str) -> InputResult {
                         Err(_) => InputResult::Invalid,
                     };
                 }
-                _ => {}
-            }
+                _ => {} // Bỏ qua các phím khác
+            },
+            _ => {} // Bỏ qua mouse events, resize events, etc.
         }
     }
 }
@@ -182,28 +187,33 @@ fn pause() {
     io::stdout().flush().ok();
 
     let _ = terminal::enable_raw_mode();
+    let _ = crossterm::execute!(io::stdout(), event::EnableMouseCapture);
     loop {
-        if let Ok(Event::Key(KeyEvent { code, modifiers, .. })) = event::read() {
-            match code {
+        match event::read() {
+            Ok(Event::Key(KeyEvent { code, modifiers, .. })) => match code {
                 KeyCode::Enter => {
+                    let _ = crossterm::execute!(io::stdout(), event::DisableMouseCapture);
                     let _ = terminal::disable_raw_mode();
                     println!();
                     return;
                 }
                 KeyCode::Esc => {
+                    let _ = crossterm::execute!(io::stdout(), event::DisableMouseCapture);
                     let _ = terminal::disable_raw_mode();
                     leave_alt_screen();
                     println!("{GREEN}✔ Tam biet!{RESET}");
                     std::process::exit(0);
                 }
                 KeyCode::Char('c') if modifiers.contains(KeyModifiers::CONTROL) => {
+                    let _ = crossterm::execute!(io::stdout(), event::DisableMouseCapture);
                     let _ = terminal::disable_raw_mode();
                     leave_alt_screen();
                     println!("{GREEN}✔ Tam biet!{RESET}");
                     std::process::exit(0);
                 }
                 _ => {}
-            }
+            },
+            _ => {} // Bỏ qua mouse/resize events
         }
     }
 }
@@ -361,7 +371,9 @@ fn run_submenu(title: &str, options: Vec<MenuAction>) -> Result<()> {
             eprintln!("  {RED}✗ {e}{RESET}");
         }
 
-        pause();
+        if choice.needs_pause() {
+            pause();
+        }
         clear_screen();
         show_header();
     }

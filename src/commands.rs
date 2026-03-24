@@ -51,6 +51,7 @@ pub enum MenuAction {
     SvRestart,
     SvReload,
     SvLogs,
+    SvLogsRealtime,
     LaravelCacheClear,
     LaravelConfigClear,
     LaravelRouteClear,
@@ -80,7 +81,8 @@ impl fmt::Display for MenuAction {
             Self::SvStop => write!(f, "Stop process"),
             Self::SvRestart => write!(f, "Restart process"),
             Self::SvReload => write!(f, "Reload config (reread & update)"),
-            Self::SvLogs => write!(f, "Xem logs process"),
+            Self::SvLogs => write!(f, "Xem logs (scroll, q de thoat)"),
+            Self::SvLogsRealtime => write!(f, "Xem logs realtime (Ctrl+C de thoat)"),
             Self::LaravelCacheClear => write!(f, "Xóa cache"),
             Self::LaravelConfigClear => write!(f, "Xóa config cache"),
             Self::LaravelRouteClear => write!(f, "Xóa route cache"),
@@ -114,6 +116,7 @@ impl MenuAction {
             Self::SvRestart,
             Self::SvReload,
             Self::SvLogs,
+            Self::SvLogsRealtime,
         ]
     }
 
@@ -136,6 +139,11 @@ impl MenuAction {
             Self::NgrokRestart,
             Self::NgrokUrl,
         ]
+    }
+
+    /// Returns true nếu cần pause sau khi execute
+    pub fn needs_pause(&self) -> bool {
+        !matches!(self, Self::SvLogs | Self::SvLogsRealtime)
     }
 
     pub fn execute(&self) -> Result<()> {
@@ -204,7 +212,10 @@ impl MenuAction {
                 run_command("sudo", &["supervisorctl", "update"])?;
             }
             Self::SvLogs => {
-                supervisor_logs_submenu()?;
+                supervisor_logs_submenu(false)?;
+            }
+            Self::SvLogsRealtime => {
+                supervisor_logs_submenu(true)?;
             }
             Self::LaravelCacheClear => {
                 run_artisan_on_project("cache:clear")?;
@@ -423,7 +434,8 @@ fn supervisor_process_submenu(action: &str) -> Result<()> {
     Ok(())
 }
 
-fn supervisor_logs_submenu() -> Result<()> {
+fn supervisor_logs_submenu(realtime: bool) -> Result<()> {
+    let label = if realtime { "xem logs realtime" } else { "xem logs" };
     let processes = get_supervisor_processes()?;
 
     if processes.is_empty() {
@@ -431,18 +443,72 @@ fn supervisor_logs_submenu() -> Result<()> {
         return Ok(());
     }
 
-    let idx = match prompt_list("Danh sach process (xem logs)", &processes)? {
+    let idx = match prompt_list(&format!("Danh sach process ({})", label), &processes)? {
         Some(i) => i,
         None => return Ok(()),
     };
 
-    sv_tail(&processes[idx])?;
+    if realtime {
+        sv_tail_realtime(&processes[idx])?;
+    } else {
+        sv_tail(&processes[idx])?;
+    }
     Ok(())
 }
 
 pub fn sv_tail(process: &str) -> Result<()> {
+    println!("📄 Logs: {} (q de thoat, scroll de xem)\n", process);
+
+    let child = Command::new("sudo")
+        .args(&["supervisorctl", "tail", "-10000", process])
+        .stdout(std::process::Stdio::piped())
+        .spawn()
+        .map_err(|e| AppError::CommandNotFound {
+            cmd: "supervisorctl".to_string(),
+            source: e,
+        })?;
+
+    let status = Command::new("less")
+        .arg("+G")
+        .arg("-R")
+        .stdin(child.stdout.unwrap())
+        .status()
+        .map_err(|e| AppError::CommandNotFound {
+            cmd: "less".to_string(),
+            source: e,
+        })?;
+
+    if !status.success() {
+        let code = status.code().unwrap_or(0);
+        if code != 0 && code != 130 {
+            return Err(AppError::CommandFailed {
+                cmd: format!("supervisorctl tail {}", process),
+                code: Some(code),
+            });
+        }
+    }
+    Ok(())
+}
+
+pub fn sv_tail_realtime(process: &str) -> Result<()> {
     println!("📄 Logs realtime: {} (Ctrl+C de thoat)\n", process);
-    run_command_streaming("sudo", &["supervisorctl", "tail", "-f", process])?;
+    let status = Command::new("sudo")
+        .args(&["supervisorctl", "tail", "-f", process])
+        .status()
+        .map_err(|e| AppError::CommandNotFound {
+            cmd: "supervisorctl".to_string(),
+            source: e,
+        })?;
+
+    if !status.success() {
+        let code = status.code().unwrap_or(0);
+        if code != 0 && code != 130 {
+            return Err(AppError::CommandFailed {
+                cmd: format!("supervisorctl tail -f {}", process),
+                code: Some(code),
+            });
+        }
+    }
     Ok(())
 }
 
