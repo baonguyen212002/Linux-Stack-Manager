@@ -491,6 +491,11 @@ pub fn sv_tail(process: &str) -> Result<()> {
 }
 
 pub fn sv_tail_realtime(process: &str) -> Result<()> {
+    // Clear alternate screen + tắt echo để scroll không tạo ký tự
+    print!("\x1B[2J\x1B[1;1H");
+    std::io::Write::flush(&mut std::io::stdout()).ok();
+    let _ = Command::new("stty").arg("-echo").status();
+
     println!("📄 Logs realtime: {} (Ctrl+C de thoat)\n", process);
     let status = Command::new("sudo")
         .args(&["supervisorctl", "tail", "-f", process])
@@ -499,6 +504,9 @@ pub fn sv_tail_realtime(process: &str) -> Result<()> {
             cmd: "supervisorctl".to_string(),
             source: e,
         })?;
+
+    // Bật lại echo
+    let _ = Command::new("stty").arg("echo").status();
 
     if !status.success() {
         let code = status.code().unwrap_or(0);
