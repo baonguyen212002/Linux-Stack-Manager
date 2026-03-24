@@ -90,18 +90,19 @@ Nếu thấy `fatal: destination path 'Linux-Stack-Manager' already exists` → 
 
 ### Bước 3: Cấu hình Laravel projects
 
-**3.1.** Tạo file `.env` từ file mẫu:
+**3.1.** Tạo thư mục config và file `.env`:
 
 ```bash
-cp .env.example .env
+mkdir -p ~/.config/lstack
+cp .env.example ~/.config/lstack/.env
 ```
 
-> Lệnh này copy file `.env.example` thành file `.env`. Không có output gì là bình thường.
+> File `.env` được lưu ở `~/.config/lstack/.env` — chạy `lstack` từ bất kỳ thư mục nào đều đọc được.
 
 **3.2.** Mở file `.env` để chỉnh sửa:
 
 ```bash
-nano .env
+nano ~/.config/lstack/.env
 ```
 
 > `nano` là trình soạn thảo trong terminal. Nếu chưa có, cài bằng `sudo apt install nano`.

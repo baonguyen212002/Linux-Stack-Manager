@@ -1,7 +1,34 @@
 use std::fmt;
+use std::io::{self, Write};
 use std::process::{Command, Output};
 
 use crate::error::{AppError, Result};
+
+/// Hiển thị danh sách và đọc input. Trả về None nếu nhập 0 (quay lại).
+fn prompt_list(title: &str, options: &[String]) -> Result<Option<usize>> {
+    println!();
+    println!("{}", title);
+    for (i, opt) in options.iter().enumerate() {
+        println!("{}) {}", i + 1, opt);
+    }
+    print!("Nhap lua chon cua ban [0 = Thoat]: ");
+    io::stdout().flush().ok();
+
+    let mut input = String::new();
+    io::stdin()
+        .read_line(&mut input)
+        .map_err(|_| AppError::MenuCancelled)?;
+
+    let num: usize = input.trim().parse().unwrap_or(999);
+    if num == 0 {
+        return Ok(None);
+    }
+    if num > options.len() {
+        println!(" Lua chon khong hop le!");
+        return Err(AppError::MenuCancelled);
+    }
+    Ok(Some(num - 1))
+}
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum MenuAction {
@@ -30,7 +57,6 @@ pub enum MenuAction {
     LaravelViewClear,
     LaravelOptimizeClear,
     LaravelOptimize,
-    Back,
 }
 
 impl fmt::Display for MenuAction {
@@ -61,7 +87,6 @@ impl fmt::Display for MenuAction {
             Self::LaravelViewClear => write!(f, "Xóa view cache"),
             Self::LaravelOptimizeClear => write!(f, "Xóa tất cả cache"),
             Self::LaravelOptimize => write!(f, "Build cache (optimize)"),
-            Self::Back => write!(f, "Quay lại"),
         }
     }
 }
@@ -199,14 +224,12 @@ impl MenuAction {
             Self::LaravelOptimize => {
                 run_artisan_on_project("optimize")?;
             }
-            Self::Back => {}
         }
         Ok(())
     }
 }
 
 fn ngrok_submenu(action: &str) -> Result<()> {
-    use inquire::Select;
     use crate::projects::load_ngrok_configs;
 
     let configs = load_ngrok_configs();
@@ -216,26 +239,21 @@ fn ngrok_submenu(action: &str) -> Result<()> {
         return Ok(());
     }
 
-    let mut options: Vec<String> = configs.iter().map(|c| c.name.clone()).collect();
-    options.push("Quay lại!".to_string());
+    let options: Vec<String> = configs.iter().map(|c| c.name.clone()).collect();
 
     let prompt = match action {
-        "restart" => "Chọn service Ngrok để restart:",
-        "start" => "Chọn service Ngrok để start:",
-        "stop" => "Chọn service Ngrok để stop:",
-        _ => "Chọn service Ngrok:",
+        "restart" => "Danh sach service Ngrok (restart)",
+        "start" => "Danh sach service Ngrok (start)",
+        "stop" => "Danh sach service Ngrok (stop)",
+        _ => "Danh sach service Ngrok",
     };
 
-    let choice = Select::new(prompt, options)
-        .prompt()
-        .map_err(|_| AppError::MenuCancelled)?;
+    let idx = match prompt_list(prompt, &options)? {
+        Some(i) => i,
+        None => return Ok(()),
+    };
 
-    if choice == "Quay lại!" {
-        println!("🔙 Quay về.");
-        return Ok(());
-    }
-
-    let config = configs.iter().find(|c| c.name == choice).unwrap();
+    let config = configs.iter().find(|c| c.name == options[idx]).unwrap();
     match action {
         "start" => {
             println!("🟢 Đang start service: {}", config.service);
@@ -257,23 +275,16 @@ fn ngrok_submenu(action: &str) -> Result<()> {
 }
 
 fn logs_submenu(nginx: &crate::projects::NginxConfig) -> Result<()> {
-    use inquire::Select;
+    let options = vec!["Access log".to_string(), "Error log".to_string()];
+    let idx = match prompt_list("Chon log de xem", &options)? {
+        Some(i) => i,
+        None => return Ok(()),
+    };
 
-    let options = vec!["Access log", "Error log", "Quay lại!"];
-    let choice = Select::new("Chọn log để xem:", options)
-        .prompt()
-        .map_err(|_| AppError::MenuCancelled)?;
-
-    match choice {
-        "Access log" => {
-            show_log(&nginx.access_log)?;
-        }
-        "Error log" => {
-            show_log(&nginx.error_log)?;
-        }
-        _ => {
-            println!("🔙 Quay về.");
-        }
+    match idx {
+        0 => show_log(&nginx.access_log)?,
+        1 => show_log(&nginx.error_log)?,
+        _ => {}
     }
     Ok(())
 }
@@ -285,7 +296,6 @@ pub fn show_log(path: &str) -> Result<()> {
 }
 
 fn ngrok_url_submenu() -> Result<()> {
-    use inquire::Select;
     use crate::projects::load_ngrok_configs;
 
     let configs = load_ngrok_configs();
@@ -295,19 +305,14 @@ fn ngrok_url_submenu() -> Result<()> {
         return Ok(());
     }
 
-    let mut options: Vec<String> = configs.iter().map(|c| c.name.clone()).collect();
-    options.push("Quay lại!".to_string());
+    let options: Vec<String> = configs.iter().map(|c| c.name.clone()).collect();
 
-    let choice = Select::new("Chọn service Ngrok để xem URL:", options)
-        .prompt()
-        .map_err(|_| AppError::MenuCancelled)?;
+    let idx = match prompt_list("Danh sach service Ngrok (xem URL)", &options)? {
+        Some(i) => i,
+        None => return Ok(()),
+    };
 
-    if choice == "Quay lại!" {
-        println!("🔙 Quay về.");
-        return Ok(());
-    }
-
-    let config = configs.iter().find(|c| c.name == choice).unwrap();
+    let config = configs.iter().find(|c| c.name == options[idx]).unwrap();
     show_ngrok_url(&config.name, &config.port)?;
     Ok(())
 }
@@ -393,8 +398,6 @@ fn get_supervisor_processes() -> Result<Vec<String>> {
 }
 
 fn supervisor_process_submenu(action: &str) -> Result<()> {
-    use inquire::Select;
-
     let mut processes = get_supervisor_processes()?;
 
     if processes.is_empty() {
@@ -403,50 +406,37 @@ fn supervisor_process_submenu(action: &str) -> Result<()> {
     }
 
     processes.insert(0, "all".to_string());
-    processes.push("Quay lại!".to_string());
 
     let prompt = match action {
-        "start" => "Chọn process để start:",
-        "stop" => "Chọn process để stop:",
-        "restart" => "Chọn process để restart:",
-        _ => "Chọn process:",
+        "start" => "Danh sach process (start)",
+        "stop" => "Danh sach process (stop)",
+        "restart" => "Danh sach process (restart)",
+        _ => "Danh sach process",
     };
 
-    let choice = Select::new(prompt, processes)
-        .prompt()
-        .map_err(|_| AppError::MenuCancelled)?;
+    let idx = match prompt_list(prompt, &processes)? {
+        Some(i) => i,
+        None => return Ok(()),
+    };
 
-    if choice == "Quay lại!" {
-        println!("🔙 Quay về.");
-        return Ok(());
-    }
-
-    supervisor_action(&choice, action)?;
+    supervisor_action(&processes[idx], action)?;
     Ok(())
 }
 
 fn supervisor_logs_submenu() -> Result<()> {
-    use inquire::Select;
-
-    let mut processes = get_supervisor_processes()?;
+    let processes = get_supervisor_processes()?;
 
     if processes.is_empty() {
         println!("Không tìm thấy process nào trong Supervisor.");
         return Ok(());
     }
 
-    processes.push("Quay lại!".to_string());
+    let idx = match prompt_list("Danh sach process (xem logs)", &processes)? {
+        Some(i) => i,
+        None => return Ok(()),
+    };
 
-    let choice = Select::new("Chọn process để xem logs:", processes)
-        .prompt()
-        .map_err(|_| AppError::MenuCancelled)?;
-
-    if choice == "Quay lại!" {
-        println!("🔙 Quay về.");
-        return Ok(());
-    }
-
-    sv_tail(&choice)?;
+    sv_tail(&processes[idx])?;
     Ok(())
 }
 
@@ -481,7 +471,6 @@ pub fn ngrok_service_action(service_name: &str, action: &str) -> Result<()> {
 }
 
 fn run_artisan_on_project(artisan_cmd: &str) -> Result<()> {
-    use inquire::Select;
     use crate::projects::load_projects;
 
     let projects = load_projects();
@@ -495,16 +484,12 @@ fn run_artisan_on_project(artisan_cmd: &str) -> Result<()> {
     if projects.len() > 1 {
         options.insert(0, "all".to_string());
     }
-    options.push("Quay lại!".to_string());
 
-    let choice = Select::new("Chọn project:", options)
-        .prompt()
-        .map_err(|_| AppError::MenuCancelled)?;
-
-    if choice == "Quay lại!" {
-        println!("🔙 Quay về.");
-        return Ok(());
-    }
+    let idx = match prompt_list("Danh sach project", &options)? {
+        Some(i) => i,
+        None => return Ok(()),
+    };
+    let choice = &options[idx];
 
     if choice == "all" {
         for project in &projects {
@@ -512,7 +497,7 @@ fn run_artisan_on_project(artisan_cmd: &str) -> Result<()> {
             run_artisan(&project.path, project.user.as_deref(), artisan_cmd)?;
         }
     } else {
-        let project = projects.iter().find(|p| p.name == choice).unwrap();
+        let project = projects.iter().find(|p| p.name == choice.as_str()).unwrap();
         run_artisan(&project.path, project.user.as_deref(), artisan_cmd)?;
     }
     Ok(())
@@ -543,17 +528,20 @@ pub fn run_artisan(path: &str, user: Option<&str>, artisan_cmd: &str) -> Result<
         source: e,
     })?;
 
-    if !output.stdout.is_empty() {
-        print!("{}", String::from_utf8_lossy(&output.stdout));
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let stderr = String::from_utf8_lossy(&output.stderr);
+
+    if !stdout.is_empty() {
+        print!("{}", stdout);
     }
-    if !output.stderr.is_empty() {
-        eprint!("{}", String::from_utf8_lossy(&output.stderr));
+    if !stderr.is_empty() {
+        eprint!("{}", stderr);
     }
 
-    if output.status.success() {
-        println!("✅ Thành công!");
-    } else {
+    if !output.status.success() || stdout.contains("ERROR") || stderr.contains("ERROR") {
         println!("❌ Lỗi khi chạy artisan command");
+    } else {
+        println!("✅ Thành công!");
     }
     Ok(())
 }

@@ -1,4 +1,5 @@
 use std::collections::BTreeMap;
+use std::sync::Once;
 
 pub struct Project {
     pub name: String,
@@ -18,12 +19,26 @@ pub struct NginxConfig {
     pub error_log: String,
 }
 
-/// Đọc cấu hình Nginx từ .env
-/// NGINX_SERVICE=nginx
-/// NGINX_ACCESS_LOG=/var/log/nginx/access.log
-/// NGINX_ERROR_LOG=/var/log/nginx/error.log
+static INIT_ENV: Once = Once::new();
+
+/// Load .env theo thứ tự ưu tiên:
+/// 1. ~/.config/lstack/.env
+/// 2. Thư mục hiện tại (.env)
+fn init_env() {
+    INIT_ENV.call_once(|| {
+        if let Some(home) = std::env::var_os("HOME") {
+            let config_env = std::path::PathBuf::from(home).join(".config/lstack/.env");
+            if config_env.exists() {
+                let _ = dotenvy::from_path(&config_env);
+                return;
+            }
+        }
+        let _ = dotenvy::dotenv();
+    });
+}
+
 pub fn load_nginx_config() -> NginxConfig {
-    let _ = dotenvy::dotenv();
+    init_env();
 
     NginxConfig {
         service: std::env::var("NGINX_SERVICE").unwrap_or_else(|_| "nginx".to_string()),
@@ -32,11 +47,8 @@ pub fn load_nginx_config() -> NginxConfig {
     }
 }
 
-/// Đọc danh sách ngrok services từ .env (biến có prefix NGROK_)
-/// Format: NGROK_<TÊN>=<PORT>:<SERVICE_NAME>
-/// Ví dụ: NGROK_GATEWAY=4040:gateway-ngrok
 pub fn load_ngrok_configs() -> Vec<NgrokConfig> {
-    let _ = dotenvy::dotenv();
+    init_env();
 
     let mut configs = BTreeMap::new();
     for (key, value) in std::env::vars() {
@@ -57,16 +69,13 @@ pub fn load_ngrok_configs() -> Vec<NgrokConfig> {
     configs.into_values().collect()
 }
 
-/// Đọc danh sách projects từ .env (biến có prefix PROJECT_)
-/// Format: PROJECT_<TÊN>=<PATH> hoặc PROJECT_<TÊN>=<USER>:<PATH>
 pub fn load_projects() -> Vec<Project> {
-    let _ = dotenvy::dotenv();
+    init_env();
 
     let mut projects = BTreeMap::new();
     for (key, value) in std::env::vars() {
         if let Some(name) = key.strip_prefix("PROJECT_") {
             let (user, path) = if let Some((u, p)) = value.split_once(':') {
-                // Kiểm tra xem phần đầu có phải user hay là path (vd: C:\... hoặc /...)
                 if u.contains('/') || u.contains('\\') {
                     (None, value.as_str())
                 } else {
