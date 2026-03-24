@@ -14,6 +14,26 @@ Hỗ trợ 2 chế độ:
 
 ## Cài đặt
 
+### 0. Cài Rust (nếu chưa có)
+
+```bash
+curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
+```
+
+Sau khi cài xong, restart terminal hoặc chạy:
+
+```bash
+source "$HOME/.cargo/env"
+```
+
+Kiểm tra:
+
+```bash
+cargo --version
+```
+
+### Clone project
+
 ```bash
 git clone https://github.com/baonguyen212002/Linux-Stack-Manager.git
 cd Linux-Stack-Manager
