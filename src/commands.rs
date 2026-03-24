@@ -441,8 +441,8 @@ fn supervisor_logs_submenu() -> Result<()> {
 }
 
 pub fn sv_tail(process: &str) -> Result<()> {
-    println!("📄 Logs của process: {}\n", process);
-    run_command("sudo", &["supervisorctl", "tail", process])?;
+    println!("📄 Logs realtime: {} (Ctrl+C de thoat)\n", process);
+    run_command_streaming("sudo", &["supervisorctl", "tail", "-f", process])?;
     Ok(())
 }
 
