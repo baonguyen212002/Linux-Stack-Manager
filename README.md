@@ -14,17 +14,27 @@ Hỗ trợ 2 chế độ:
 
 ## Cài đặt
 
-### Bước 0: Cài Rust (nếu chưa có)
+### Bước 0: Cài các công cụ cần thiết
+
+**0.1.** Cài build tools (gcc, cc linker) — **bắt buộc** để compile Rust:
+
+```bash
+sudo apt update && sudo apt install -y build-essential
+```
+
+> Nếu hỏi password, gõ mật khẩu rồi nhấn **Enter** (password sẽ không hiện ra trên màn hình, cứ gõ bình thường).
+
+### Bước 1: Cài Rust (nếu chưa có)
 
 > Nếu đã có Rust, bỏ qua bước này. Kiểm tra bằng lệnh `cargo --version`.
 
-**0.1.** Mở terminal, copy và paste **toàn bộ** lệnh dưới đây, rồi nhấn **Enter**:
+**1.1.** Mở terminal, copy và paste **toàn bộ** lệnh dưới đây, rồi nhấn **Enter**:
 
 ```bash
 curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
 ```
 
-**0.2.** Đợi vài giây, màn hình sẽ hiện ra nhiều dòng chữ. Kéo xuống cuối sẽ thấy:
+**1.2.** Đợi vài giây, màn hình sẽ hiện ra nhiều dòng chữ. Kéo xuống cuối sẽ thấy:
 
 ```
 1) Proceed with standard installation (default - just press enter)
@@ -33,9 +43,9 @@ curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
 >
 ```
 
-**0.3.** Nhấn **Enter** (không cần gõ gì). Hệ thống sẽ bắt đầu tải và cài Rust.
+**1.3.** Nhấn **Enter** (không cần gõ gì). Hệ thống sẽ bắt đầu tải và cài Rust.
 
-**0.4.** Đợi khoảng 1-2 phút. Khi cài xong sẽ hiện:
+**1.4.** Đợi khoảng 1-2 phút. Khi cài xong sẽ hiện:
 
 ```
 Rust is installed now. Great!
@@ -43,7 +53,7 @@ Rust is installed now. Great!
 To get started you may need to restart your current shell.
 ```
 
-**0.5.** Copy và paste lệnh sau, nhấn **Enter**:
+**1.5.** Copy và paste lệnh sau, nhấn **Enter**:
 
 ```bash
 source "$HOME/.cargo/env"
@@ -51,7 +61,7 @@ source "$HOME/.cargo/env"
 
 > Lệnh này giúp terminal hiện tại nhận diện được Rust. Không có output gì là bình thường.
 
-**0.6.** Kiểm tra cài thành công. Gõ lệnh:
+**1.6.** Kiểm tra cài thành công. Gõ lệnh:
 
 ```bash
 cargo --version
@@ -63,9 +73,9 @@ Nếu hiện `command not found` → đóng terminal, mở lại terminal mới,
 
 ---
 
-### Bước 1: Tải project về
+### Bước 2: Tải project về
 
-**1.1.** Copy và paste **toàn bộ 2 dòng** lệnh dưới đây, nhấn **Enter**:
+**2.1.** Copy và paste **toàn bộ 2 dòng** lệnh dưới đây, nhấn **Enter**:
 
 ```bash
 git clone https://github.com/baonguyen212002/Linux-Stack-Manager.git
@@ -78,9 +88,9 @@ Nếu thấy `fatal: destination path 'Linux-Stack-Manager' already exists` → 
 
 ---
 
-### Bước 2: Cấu hình Laravel projects
+### Bước 3: Cấu hình Laravel projects
 
-**2.1.** Tạo file `.env` từ file mẫu:
+**3.1.** Tạo file `.env` từ file mẫu:
 
 ```bash
 cp .env.example .env
@@ -88,7 +98,7 @@ cp .env.example .env
 
 > Lệnh này copy file `.env.example` thành file `.env`. Không có output gì là bình thường.
 
-**2.2.** Mở file `.env` để chỉnh sửa:
+**3.2.** Mở file `.env` để chỉnh sửa:
 
 ```bash
 nano .env
@@ -96,7 +106,7 @@ nano .env
 
 > `nano` là trình soạn thảo trong terminal. Nếu chưa có, cài bằng `sudo apt install nano`.
 
-**2.3.** Thêm các Laravel projects vào file. Mỗi project 1 dòng, format:
+**3.3.** Thêm các Laravel projects vào file. Mỗi project 1 dòng, format:
 
 ```env
 PROJECT_<TÊN>=<USER>:<ĐƯỜNG DẪN>
@@ -134,15 +144,15 @@ PROJECT_PORTAL=localgp39nV:/home/localgp39nV/portal-api.gpay.local/public_html
 >
 > Không biết tên đăng nhập? Gõ `whoami` trong terminal.
 
-**2.4.** Lưu file và thoát nano:
+**3.4.** Lưu file và thoát nano:
 - Nhấn **Ctrl + O** (chữ O, không phải số 0) → nhấn **Enter** để lưu
 - Nhấn **Ctrl + X** để thoát nano
 
 ---
 
-### Bước 3: Build và cài đặt
+### Bước 4: Build và cài đặt
 
-**3.1.** Chạy lệnh sau để build và cài:
+**4.1.** Chạy lệnh sau để build và cài:
 
 ```bash
 cargo install --path .
@@ -154,7 +164,7 @@ cargo install --path .
 > Installed package `lstack v0.1.0` (executable `lstack`)
 > ```
 
-**3.2.** Kiểm tra cài thành công:
+**4.2.** Kiểm tra cài thành công:
 
 ```bash
 lstack --help
@@ -166,18 +176,18 @@ Nếu hiện `command not found` → chạy `source "$HOME/.cargo/env"` rồi th
 
 ---
 
-### Bước 4 (Optional): Thêm alias build nhanh
+### Bước 5 (Optional): Thêm alias build nhanh
 
 Khi có bản cập nhật mới, bạn cần pull code và build lại. Alias giúp làm điều này bằng 1 lệnh.
 
-**4.1.** Chạy lệnh sau (**copy toàn bộ 2 dòng**):
+**5.1.** Chạy lệnh sau (**copy toàn bộ 2 dòng**):
 
 ```bash
 echo 'alias lstack-build="cd ~/Linux-Stack-Manager && git pull && cargo clean -p lstack && cargo install --path ."' >> ~/.bashrc
 source ~/.bashrc
 ```
 
-**4.2.** Từ giờ khi cần cập nhật, chỉ cần gõ:
+**5.2.** Từ giờ khi cần cập nhật, chỉ cần gõ:
 
 ```bash
 lstack-build
