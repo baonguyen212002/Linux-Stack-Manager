@@ -66,20 +66,6 @@ impl fmt::Display for MenuAction {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq)]
-pub enum NgrokService {
-    Gateway,
-    Portal,
-}
-
-impl fmt::Display for NgrokService {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Self::Gateway => write!(f, "gateway"),
-            Self::Portal => write!(f, "portal"),
-        }
-    }
-}
 
 impl MenuAction {
     pub fn nginx_actions() -> Vec<Self> {
@@ -128,36 +114,37 @@ impl MenuAction {
     }
 
     pub fn execute(&self) -> Result<()> {
+        let nginx = crate::projects::load_nginx_config();
         match self {
             Self::Install => {
                 println!("🚀 Đang cài đặt Nginx...");
-                run_command_streaming("sudo", &["apt", "install", "nginx", "-y"])?;
+                run_command_streaming("sudo", &["apt", "install", &nginx.service, "-y"])?;
             }
             Self::Status => {
-                check_service_status("nginx")?;
+                check_service_status(&nginx.service)?;
             }
             Self::Start => {
                 println!("🟢 Đang bật Nginx...");
-                run_command("sudo", &["systemctl", "start", "nginx"])?;
+                run_command("sudo", &["systemctl", "start", &nginx.service])?;
             }
             Self::Restart => {
                 println!("🔄 Đang restart Nginx...");
-                run_command("sudo", &["systemctl", "restart", "nginx"])?;
+                run_command("sudo", &["systemctl", "restart", &nginx.service])?;
             }
             Self::Reload => {
                 println!("🔄 Đang reload Nginx...");
-                run_command("sudo", &["systemctl", "reload", "nginx"])?;
+                run_command("sudo", &["systemctl", "reload", &nginx.service])?;
             }
             Self::Stop => {
                 println!("🔴 Đang tắt Nginx...");
-                run_command("sudo", &["systemctl", "stop", "nginx"])?;
+                run_command("sudo", &["systemctl", "stop", &nginx.service])?;
             }
             Self::TestConfig => {
                 println!("🔧 Đang kiểm tra config Nginx...");
-                run_command("sudo", &["nginx", "-t"])?;
+                run_command("sudo", &[&nginx.service, "-t"])?;
             }
             Self::Logs => {
-                logs_submenu()?;
+                logs_submenu(&nginx)?;
             }
             Self::NgrokCheck => {
                 ngrok_submenu("status")?;
@@ -220,9 +207,16 @@ impl MenuAction {
 
 fn ngrok_submenu(action: &str) -> Result<()> {
     use inquire::Select;
+    use crate::projects::load_ngrok_configs;
 
-    let services = vec![NgrokService::Gateway, NgrokService::Portal];
-    let mut options: Vec<String> = services.iter().map(|s| s.to_string()).collect();
+    let configs = load_ngrok_configs();
+    if configs.is_empty() {
+        println!("Chưa cấu hình ngrok nào trong .env");
+        println!("Thêm NGROK_<TÊN>=<PORT>:<SERVICE_NAME> vào file .env");
+        return Ok(());
+    }
+
+    let mut options: Vec<String> = configs.iter().map(|c| c.name.clone()).collect();
     options.push("Quay lại!".to_string());
 
     let prompt = match action {
@@ -232,7 +226,7 @@ fn ngrok_submenu(action: &str) -> Result<()> {
         _ => "Chọn service Ngrok:",
     };
 
-    let choice = Select::new(prompt, options.clone())
+    let choice = Select::new(prompt, options)
         .prompt()
         .map_err(|_| AppError::MenuCancelled)?;
 
@@ -241,28 +235,28 @@ fn ngrok_submenu(action: &str) -> Result<()> {
         return Ok(());
     }
 
-    let service_name = format!("{}-ngrok", choice);
+    let config = configs.iter().find(|c| c.name == choice).unwrap();
     match action {
         "start" => {
-            println!("🟢 Đang start service: {}", service_name);
-            run_command("sudo", &["systemctl", "start", &service_name])?;
+            println!("🟢 Đang start service: {}", config.service);
+            run_command("sudo", &["systemctl", "start", &config.service])?;
         }
         "stop" => {
-            println!("🔴 Đang stop service: {}", service_name);
-            run_command("sudo", &["systemctl", "stop", &service_name])?;
+            println!("🔴 Đang stop service: {}", config.service);
+            run_command("sudo", &["systemctl", "stop", &config.service])?;
         }
         "restart" => {
-            println!("🔄 Đang restart service: {}", service_name);
-            run_command("sudo", &["systemctl", "restart", &service_name])?;
+            println!("🔄 Đang restart service: {}", config.service);
+            run_command("sudo", &["systemctl", "restart", &config.service])?;
         }
         _ => {
-            check_service_status(&service_name)?;
+            check_service_status(&config.service)?;
         }
     }
     Ok(())
 }
 
-fn logs_submenu() -> Result<()> {
+fn logs_submenu(nginx: &crate::projects::NginxConfig) -> Result<()> {
     use inquire::Select;
 
     let options = vec!["Access log", "Error log", "Quay lại!"];
@@ -272,10 +266,10 @@ fn logs_submenu() -> Result<()> {
 
     match choice {
         "Access log" => {
-            show_log("/var/log/nginx/access.log")?;
+            show_log(&nginx.access_log)?;
         }
         "Error log" => {
-            show_log("/var/log/nginx/error.log")?;
+            show_log(&nginx.error_log)?;
         }
         _ => {
             println!("🔙 Quay về.");
@@ -292,12 +286,19 @@ pub fn show_log(path: &str) -> Result<()> {
 
 fn ngrok_url_submenu() -> Result<()> {
     use inquire::Select;
+    use crate::projects::load_ngrok_configs;
 
-    let services = vec![NgrokService::Gateway, NgrokService::Portal];
-    let mut options: Vec<String> = services.iter().map(|s| s.to_string()).collect();
+    let configs = load_ngrok_configs();
+    if configs.is_empty() {
+        println!("Chưa cấu hình ngrok nào trong .env");
+        println!("Thêm NGROK_<TÊN>=<PORT>:<SERVICE_NAME> vào file .env");
+        return Ok(());
+    }
+
+    let mut options: Vec<String> = configs.iter().map(|c| c.name.clone()).collect();
     options.push("Quay lại!".to_string());
 
-    let choice = Select::new("Chọn service Ngrok để xem URL:", options.clone())
+    let choice = Select::new("Chọn service Ngrok để xem URL:", options)
         .prompt()
         .map_err(|_| AppError::MenuCancelled)?;
 
@@ -306,16 +307,12 @@ fn ngrok_url_submenu() -> Result<()> {
         return Ok(());
     }
 
-    show_ngrok_url(&choice)?;
+    let config = configs.iter().find(|c| c.name == choice).unwrap();
+    show_ngrok_url(&config.name, &config.port)?;
     Ok(())
 }
 
-pub fn show_ngrok_url(service: &str) -> Result<()> {
-    let port = match service {
-        "gateway" => "4040",
-        "portal" => "4041",
-        _ => "4040",
-    };
+pub fn show_ngrok_url(service: &str, port: &str) -> Result<()> {
 
     let url = format!("http://localhost:{}/api/tunnels", port);
     println!("🔗 Đang lấy URL từ ngrok ({})...\n", service);
@@ -471,8 +468,7 @@ pub fn supervisor_action(process: &str, action: &str) -> Result<()> {
     Ok(())
 }
 
-pub fn ngrok_service_action(service: &str, action: &str) -> Result<()> {
-    let service_name = format!("{}-ngrok", service);
+pub fn ngrok_service_action(service_name: &str, action: &str) -> Result<()> {
     let (icon, verb) = match action {
         "start" => ("🟢", "start"),
         "stop" => ("🔴", "stop"),
@@ -480,7 +476,7 @@ pub fn ngrok_service_action(service: &str, action: &str) -> Result<()> {
         _ => ("🔍", "status"),
     };
     println!("{} Đang {} service: {}", icon, verb, service_name);
-    run_command("sudo", &["systemctl", action, &service_name])?;
+    run_command("sudo", &["systemctl", action, service_name])?;
     Ok(())
 }
 

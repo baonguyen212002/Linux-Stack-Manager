@@ -7,7 +7,7 @@ mod projects;
 use clap::Parser;
 use cli::{Cli, CliCommand};
 use commands::{check_service_status, check_supervisor_status, ngrok_service_action, run_artisan, run_command, run_command_streaming, show_log, show_ngrok_url, supervisor_action, sv_tail};
-use projects::load_projects;
+use projects::{load_nginx_config, load_ngrok_configs, load_projects};
 use error::AppError;
 
 fn main() {
@@ -24,50 +24,52 @@ fn main() {
     }
 }
 
-fn validate_ngrok_service(service: &str) -> error::Result<()> {
-    let valid = ["gateway", "portal"];
-    if !valid.contains(&service) {
-        return Err(AppError::CommandFailed {
-            cmd: format!("ngrok {}", service),
+fn find_ngrok_config(name: &str) -> error::Result<(String, String)> {
+    let configs = load_ngrok_configs();
+    let config = configs
+        .into_iter()
+        .find(|c| c.name == name)
+        .ok_or_else(|| AppError::CommandFailed {
+            cmd: format!("Không tìm thấy ngrok config: {}. Thêm NGROK_{}=<PORT>:<SERVICE> vào .env", name, name.to_uppercase()),
             code: None,
-        });
-    }
-    Ok(())
+        })?;
+    Ok((config.service, config.port))
 }
 
 fn execute_cli(cmd: CliCommand) -> error::Result<()> {
+    let nginx = load_nginx_config();
     match cmd {
         CliCommand::Install => {
             println!("🚀 Đang cài đặt Nginx...");
-            run_command_streaming("sudo", &["apt", "install", "nginx", "-y"])?;
+            run_command_streaming("sudo", &["apt", "install", &nginx.service, "-y"])?;
         }
         CliCommand::Status => {
-            check_service_status("nginx")?;
+            check_service_status(&nginx.service)?;
         }
         CliCommand::Start => {
             println!("🟢 Đang bật Nginx...");
-            run_command("sudo", &["systemctl", "start", "nginx"])?;
+            run_command("sudo", &["systemctl", "start", &nginx.service])?;
         }
         CliCommand::Restart => {
             println!("🔄 Đang restart Nginx...");
-            run_command("sudo", &["systemctl", "restart", "nginx"])?;
+            run_command("sudo", &["systemctl", "restart", &nginx.service])?;
         }
         CliCommand::Reload => {
             println!("🔄 Đang reload Nginx...");
-            run_command("sudo", &["systemctl", "reload", "nginx"])?;
+            run_command("sudo", &["systemctl", "reload", &nginx.service])?;
         }
         CliCommand::Stop => {
             println!("🔴 Đang tắt Nginx...");
-            run_command("sudo", &["systemctl", "stop", "nginx"])?;
+            run_command("sudo", &["systemctl", "stop", &nginx.service])?;
         }
         CliCommand::TestConfig => {
             println!("🔧 Đang kiểm tra config Nginx...");
-            run_command("sudo", &["nginx", "-t"])?;
+            run_command("sudo", &[&nginx.service, "-t"])?;
         }
         CliCommand::Logs { log_type } => {
             let path = match log_type.as_str() {
-                "access" => "/var/log/nginx/access.log",
-                "error" => "/var/log/nginx/error.log",
+                "access" => nginx.access_log.as_str(),
+                "error" => nginx.error_log.as_str(),
                 _ => {
                     return Err(AppError::CommandFailed {
                         cmd: format!("logs {}", log_type),
@@ -78,25 +80,24 @@ fn execute_cli(cmd: CliCommand) -> error::Result<()> {
             show_log(path)?;
         }
         CliCommand::Ngrok { service } => {
-            validate_ngrok_service(&service)?;
-            let service_name = format!("{}-ngrok", service);
+            let (service_name, _) = find_ngrok_config(&service)?;
             check_service_status(&service_name)?;
         }
         CliCommand::NgrokStart { service } => {
-            validate_ngrok_service(&service)?;
-            ngrok_service_action(&service, "start")?;
+            let (service_name, _) = find_ngrok_config(&service)?;
+            ngrok_service_action(&service_name, "start")?;
         }
         CliCommand::NgrokStop { service } => {
-            validate_ngrok_service(&service)?;
-            ngrok_service_action(&service, "stop")?;
+            let (service_name, _) = find_ngrok_config(&service)?;
+            ngrok_service_action(&service_name, "stop")?;
         }
         CliCommand::NgrokRestart { service } => {
-            validate_ngrok_service(&service)?;
-            ngrok_service_action(&service, "restart")?;
+            let (service_name, _) = find_ngrok_config(&service)?;
+            ngrok_service_action(&service_name, "restart")?;
         }
         CliCommand::NgrokUrl { service } => {
-            validate_ngrok_service(&service)?;
-            show_ngrok_url(&service)?;
+            let (_, port) = find_ngrok_config(&service)?;
+            show_ngrok_url(&service, &port)?;
         }
         CliCommand::SvStatus => {
             check_supervisor_status()?;
