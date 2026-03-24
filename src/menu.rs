@@ -23,6 +23,7 @@ enum MainMenu {
     Ngrok,
     Supervisor,
     Laravel,
+    Config,
 }
 
 impl MainMenu {
@@ -32,6 +33,7 @@ impl MainMenu {
             Self::Ngrok => "🔗",
             Self::Supervisor => "⚙️ ",
             Self::Laravel => "🧹",
+            Self::Config => "📝",
         }
     }
 }
@@ -43,6 +45,7 @@ impl std::fmt::Display for MainMenu {
             Self::Ngrok => write!(f, "Quan ly Ngrok"),
             Self::Supervisor => write!(f, "Quan ly Supervisor"),
             Self::Laravel => write!(f, "Quan ly Laravel Cache"),
+            Self::Config => write!(f, "Cau hinh .env"),
         }
     }
 }
@@ -213,6 +216,7 @@ pub fn interactive_menu() -> Result<()> {
         MainMenu::Ngrok,
         MainMenu::Supervisor,
         MainMenu::Laravel,
+        MainMenu::Config,
     ];
 
     loop {
@@ -237,6 +241,7 @@ pub fn interactive_menu() -> Result<()> {
             MainMenu::Ngrok => ngrok_submenu(),
             MainMenu::Supervisor => supervisor_submenu(),
             MainMenu::Laravel => laravel_submenu(),
+            MainMenu::Config => config_submenu(),
         };
 
         // Nếu submenu trả Err (Esc) → thoát hẳn
@@ -269,6 +274,77 @@ fn laravel_submenu() -> Result<()> {
 fn ngrok_submenu() -> Result<()> {
     let options = MenuAction::ngrok_actions();
     run_submenu("Quan ly Ngrok", options)
+}
+
+fn config_submenu() -> Result<()> {
+    use crate::projects::{env_path, load_ngrok_configs, load_nginx_config, load_projects};
+
+    loop {
+        let options = vec![
+            "Xem cau hinh hien tai".to_string(),
+            "Mo file .env bang nano".to_string(),
+        ];
+
+        let idx = match prompt_submenu("Cau hinh .env", &options) {
+            Ok(Some(i)) => i,
+            Ok(None) => return Ok(()),
+            Err(e) => return Err(e),
+        };
+
+        println!();
+        let env_file = env_path();
+
+        match idx {
+            0 => {
+                let nginx = load_nginx_config();
+                let ngrok_configs = load_ngrok_configs();
+                let projects = load_projects();
+
+                println!("  {CYAN}{BOLD}Nginx:{RESET}");
+                println!("    Service:    {}", nginx.service);
+                println!("    Access log: {}", nginx.access_log);
+                println!("    Error log:  {}", nginx.error_log);
+                println!();
+
+                println!("  {CYAN}{BOLD}Ngrok services:{RESET}");
+                if ngrok_configs.is_empty() {
+                    println!("    {DIM}(chua cau hinh){RESET}");
+                } else {
+                    for c in &ngrok_configs {
+                        println!("    {} → port:{}, service:{}", c.name, c.port, c.service);
+                    }
+                }
+                println!();
+
+                println!("  {CYAN}{BOLD}Laravel projects:{RESET}");
+                if projects.is_empty() {
+                    println!("    {DIM}(chua cau hinh){RESET}");
+                } else {
+                    for p in &projects {
+                        let user = p.user.as_deref().unwrap_or("(current user)");
+                        println!("    {} → user:{}, path:{}", p.name, user, p.path);
+                    }
+                }
+                println!();
+                println!("  {DIM}File: {}{RESET}", env_file.display());
+            }
+            1 => {
+                leave_alt_screen();
+                let _ = std::process::Command::new("nano")
+                    .arg(&env_file)
+                    .status();
+                enter_alt_screen();
+                clear_screen();
+                show_header();
+                continue;
+            }
+            _ => {}
+        }
+
+        pause();
+        clear_screen();
+        show_header();
+    }
 }
 
 fn run_submenu(title: &str, options: Vec<MenuAction>) -> Result<()> {

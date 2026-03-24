@@ -21,6 +21,17 @@ pub struct NginxConfig {
 
 static INIT_ENV: Once = Once::new();
 
+/// Trả về đường dẫn file .env
+pub fn env_path() -> std::path::PathBuf {
+    if let Some(home) = std::env::var_os("HOME") {
+        let config_env = std::path::PathBuf::from(home).join(".config/lstack/.env");
+        if config_env.exists() {
+            return config_env;
+        }
+    }
+    std::path::PathBuf::from(".env")
+}
+
 /// Load .env theo thứ tự ưu tiên:
 /// 1. ~/.config/lstack/.env
 /// 2. Thư mục hiện tại (.env)
