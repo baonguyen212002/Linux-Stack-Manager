@@ -8,92 +8,194 @@ Hỗ trợ 2 chế độ:
 
 ## Yêu cầu
 
-- Rust 1.85+ (edition 2024)
-- Linux (systemctl, supervisorctl)
+- Linux (Ubuntu/Debian)
+- Quyền sudo
 - PHP (cho Laravel cache commands)
 
 ## Cài đặt
 
-### 0. Cài Rust (nếu chưa có)
+### Bước 0: Cài Rust (nếu chưa có)
+
+> Nếu đã có Rust, bỏ qua bước này. Kiểm tra bằng lệnh `cargo --version`.
+
+**0.1.** Mở terminal, copy và paste **toàn bộ** lệnh dưới đây, rồi nhấn **Enter**:
 
 ```bash
 curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
 ```
 
-Sau khi cài xong, restart terminal hoặc chạy:
+**0.2.** Đợi vài giây, màn hình sẽ hiện ra nhiều dòng chữ. Kéo xuống cuối sẽ thấy:
+
+```
+1) Proceed with standard installation (default - just press enter)
+2) Customize installation
+3) Cancel installation
+>
+```
+
+**0.3.** Nhấn **Enter** (không cần gõ gì). Hệ thống sẽ bắt đầu tải và cài Rust.
+
+**0.4.** Đợi khoảng 1-2 phút. Khi cài xong sẽ hiện:
+
+```
+Rust is installed now. Great!
+
+To get started you may need to restart your current shell.
+```
+
+**0.5.** Copy và paste lệnh sau, nhấn **Enter**:
 
 ```bash
 source "$HOME/.cargo/env"
 ```
 
-Kiểm tra:
+> Lệnh này giúp terminal hiện tại nhận diện được Rust. Không có output gì là bình thường.
+
+**0.6.** Kiểm tra cài thành công. Gõ lệnh:
 
 ```bash
 cargo --version
 ```
 
-### Clone project
+Nếu hiện ra kiểu `cargo 1.85.0` (số phiên bản có thể khác) là **thành công**.
+
+Nếu hiện `command not found` → đóng terminal, mở lại terminal mới, rồi thử lại `cargo --version`.
+
+---
+
+### Bước 1: Tải project về
+
+**1.1.** Copy và paste **toàn bộ 2 dòng** lệnh dưới đây, nhấn **Enter**:
 
 ```bash
 git clone https://github.com/baonguyen212002/Linux-Stack-Manager.git
 cd Linux-Stack-Manager
 ```
 
-### 1. Cấu hình Laravel projects
+> Dòng 1 tải project về máy. Dòng 2 di chuyển vào thư mục project.
+
+Nếu thấy `fatal: destination path 'Linux-Stack-Manager' already exists` → project đã tải trước đó rồi. Chỉ cần chạy `cd Linux-Stack-Manager`.
+
+---
+
+### Bước 2: Cấu hình Laravel projects
+
+**2.1.** Tạo file `.env` từ file mẫu:
 
 ```bash
 cp .env.example .env
 ```
 
-Mở `.env`, thêm Laravel projects:
+> Lệnh này copy file `.env.example` thành file `.env`. Không có output gì là bình thường.
 
-```env
-# Project tạo từ HostVN (user riêng):
-PROJECT_GATEWAY=gatewayjcEz:/home/gatewayjcEz/local-gpay-gateway.glodival-sandbox.local/public_html
-
-# Project setup thủ công (cache owner khác user hiện tại):
-PROJECT_PORTAL=localgp39nV:/home/localgp39nV/portal-api.gpay.local/public_html
-
-# Project mà bạn là owner (không cần user):
-PROJECT_MYAPP=/home/shino/my-project
-```
-
-**Cách xác định có cần thêm USER hay không:**
+**2.2.** Mở file `.env` để chỉnh sửa:
 
 ```bash
-cd /path/to/project
-ls -la storage/framework/cache/data/
+nano .env
 ```
 
-- Cache files owner **khác** user hiện tại → thêm `USER:` trước path
-- Cache files owner **là** user hiện tại → chỉ cần path
+> `nano` là trình soạn thảo trong terminal. Nếu chưa có, cài bằng `sudo apt install nano`.
 
-Xem chi tiết trong `.env.example`.
+**2.3.** Thêm các Laravel projects vào file. Mỗi project 1 dòng, format:
 
-### 2. Build và cài đặt
+```env
+PROJECT_<TÊN>=<USER>:<ĐƯỜNG DẪN>
+```
+
+Ví dụ:
+
+```env
+PROJECT_GATEWAY=gatewayjcEz:/home/gatewayjcEz/local-gpay-gateway.glodival-sandbox.local/public_html
+PROJECT_PORTAL=localgp39nV:/home/localgp39nV/portal-api.gpay.local/public_html
+```
+
+> **Cách xác định USER:**
+>
+> Vào thư mục project, chạy:
+> ```bash
+> ls -la storage/framework/cache/data/
+> ```
+>
+> Nhìn cột thứ 3 (owner). Ví dụ:
+> ```
+> drwxr-sr-x 3 localgp39nV devs 4096 Mar 23 13:18 00
+>                ^^^^^^^^^^^
+>                Đây là USER
+> ```
+>
+> - Nếu owner **khác** tên đăng nhập của bạn → thêm `USER:` trước path
+>   ```
+>   PROJECT_PORTAL=localgp39nV:/home/localgp39nV/.../public_html
+>   ```
+> - Nếu owner **là** tên đăng nhập của bạn → không cần USER, chỉ cần path
+>   ```
+>   PROJECT_MYAPP=/home/shino/my-project
+>   ```
+>
+> Không biết tên đăng nhập? Gõ `whoami` trong terminal.
+
+**2.4.** Lưu file và thoát nano:
+- Nhấn **Ctrl + O** (chữ O, không phải số 0) → nhấn **Enter** để lưu
+- Nhấn **Ctrl + X** để thoát nano
+
+---
+
+### Bước 3: Build và cài đặt
+
+**3.1.** Chạy lệnh sau để build và cài:
 
 ```bash
 cargo install --path .
 ```
 
-Binary sẽ được cài vào `~/.cargo/bin/lstack`.
+> Lần đầu sẽ tải dependencies và compile, mất khoảng 1-3 phút. Khi xong sẽ hiện:
+> ```
+> Installing /home/<user>/.cargo/bin/lstack
+> Installed package `lstack v0.1.0` (executable `lstack`)
+> ```
 
-### 3. (Optional) Thêm alias build nhanh
+**3.2.** Kiểm tra cài thành công:
 
 ```bash
-echo 'alias lstack-build="cd ~/Linux-Stack-Manager && cargo clean -p lstack && cargo install --path ."' >> ~/.bashrc
+lstack --help
+```
+
+Nếu hiện ra danh sách commands là **thành công**.
+
+Nếu hiện `command not found` → chạy `source "$HOME/.cargo/env"` rồi thử lại.
+
+---
+
+### Bước 4 (Optional): Thêm alias build nhanh
+
+Khi có bản cập nhật mới, bạn cần pull code và build lại. Alias giúp làm điều này bằng 1 lệnh.
+
+**4.1.** Chạy lệnh sau (**copy toàn bộ 2 dòng**):
+
+```bash
+echo 'alias lstack-build="cd ~/Linux-Stack-Manager && git pull && cargo clean -p lstack && cargo install --path ."' >> ~/.bashrc
 source ~/.bashrc
 ```
 
-Sau này chỉ cần chạy `lstack-build` để cập nhật.
+**4.2.** Từ giờ khi cần cập nhật, chỉ cần gõ:
+
+```bash
+lstack-build
+```
+
+---
 
 ## Sử dụng
 
 ### Interactive menu
 
+Gõ `lstack` rồi nhấn **Enter**:
+
 ```bash
 lstack
 ```
+
+Dùng **phím mũi tên lên/xuống** để di chuyển, nhấn **Enter** để chọn:
 
 ```
 > Bạn muốn làm gì?
@@ -104,13 +206,19 @@ lstack
   Thoát
 ```
 
-### CLI commands
+Chọn vào từng mục sẽ hiện sub-menu với các chức năng chi tiết.
+
+Nhấn **Esc** hoặc **Ctrl + C** để thoát bất cứ lúc nào.
+
+### CLI commands (chạy trực tiếp)
+
+> Dùng khi muốn chạy nhanh mà không cần vào menu.
 
 #### Nginx
 
 ```bash
 lstack install          # Cài đặt Nginx
-lstack status           # Kiểm tra trạng thái
+lstack status           # Kiểm tra trạng thái (đang chạy hay không)
 lstack start            # Khởi động
 lstack restart          # Restart
 lstack reload           # Reload config (không downtime)
@@ -130,7 +238,7 @@ lstack ngrok-restart gateway  # Restart service
 lstack ngrok-url gateway      # Xem public URL
 ```
 
-Thay `gateway` bằng `portal` cho portal service.
+> Thay `gateway` bằng `portal` cho portal service.
 
 #### Supervisor
 
@@ -143,6 +251,8 @@ lstack sv-reload                # Reload config (reread & update)
 lstack sv-logs <process>        # Xem logs process
 ```
 
+> `<process>` là tên process từ `supervisorctl status`, ví dụ: `gateway-worker:gateway-worker_00`. Gõ `all` để thao tác tất cả.
+
 #### Laravel Cache
 
 ```bash
@@ -154,4 +264,5 @@ lstack laravel-clear-all <project|all>     # Xóa tất cả cache
 lstack laravel-optimize <project|all>      # Build cache (optimize)
 ```
 
-`<project>` là tên project trong `.env` (viết thường), ví dụ: `gateway`, `portal`.
+> `<project>` là tên project trong `.env` (viết thường), ví dụ: `gateway`, `portal`.
+> Gõ `all` để chạy cho tất cả projects.
