@@ -1,5 +1,4 @@
 use std::collections::BTreeMap;
-use std::sync::Once;
 
 pub struct Project {
     pub name: String,
@@ -19,8 +18,6 @@ pub struct NginxConfig {
     pub error_log: String,
 }
 
-static INIT_ENV: Once = Once::new();
-
 /// Trả về đường dẫn file .env
 pub fn env_path() -> std::path::PathBuf {
     if let Some(home) = std::env::var_os("HOME") {
@@ -32,20 +29,12 @@ pub fn env_path() -> std::path::PathBuf {
     std::path::PathBuf::from(".env")
 }
 
-/// Load .env theo thứ tự ưu tiên:
-/// 1. ~/.config/lstack/.env
-/// 2. Thư mục hiện tại (.env)
+/// Load .env mỗi lần gọi (override giá trị cũ) để nhận thay đổi realtime
 fn init_env() {
-    INIT_ENV.call_once(|| {
-        if let Some(home) = std::env::var_os("HOME") {
-            let config_env = std::path::PathBuf::from(home).join(".config/lstack/.env");
-            if config_env.exists() {
-                let _ = dotenvy::from_path(&config_env);
-                return;
-            }
-        }
-        let _ = dotenvy::dotenv();
-    });
+    let path = env_path();
+    if path.exists() {
+        let _ = dotenvy::from_path_override(&path);
+    }
 }
 
 pub fn load_nginx_config() -> NginxConfig {
