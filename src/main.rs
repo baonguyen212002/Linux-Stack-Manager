@@ -2,6 +2,7 @@ mod cli;
 mod commands;
 mod error;
 mod menu;
+mod nav;
 mod projects;
 
 use clap::Parser;
@@ -11,11 +12,22 @@ use projects::{load_nginx_config, load_ngrok_configs, load_projects};
 use error::AppError;
 
 fn main() {
-    let args = Cli::parse();
+    let raw_args: Vec<String> = std::env::args().skip(1).collect();
 
-    let result = match args.command {
-        Some(cmd) => execute_cli(cmd),
-        None => menu::interactive_menu(),
+    // Quick nav mode: lstack 4 1 1 → tự động điều hướng menu
+    let all_numbers = !raw_args.is_empty()
+        && raw_args.iter().all(|a| a.parse::<usize>().is_ok());
+
+    let result = if all_numbers {
+        let path: Vec<usize> = raw_args.iter().map(|a| a.parse().unwrap()).collect();
+        nav::set_nav_path(path);
+        menu::interactive_menu()
+    } else {
+        let args = Cli::parse();
+        match args.command {
+            Some(cmd) => execute_cli(cmd),
+            None => menu::interactive_menu(),
+        }
     };
 
     if let Err(e) = result {

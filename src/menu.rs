@@ -142,6 +142,14 @@ fn read_input(prompt: &str) -> InputResult {
 }
 
 fn prompt_menu(options: &[MainMenu]) -> Result<Option<usize>> {
+    // Quick nav: auto-select từ nav queue
+    if let Some(n) = crate::nav::next_nav() {
+        if n == 0 { return Ok(None); }
+        if n <= options.len() { return Ok(Some(n - 1)); }
+        println!("  {RED}✗ Lua chon khong hop le: {n}{RESET}");
+        return Err(AppError::MenuCancelled);
+    }
+
     for (i, opt) in options.iter().enumerate() {
         let num = i + 1;
         println!("  {GREEN}{BOLD}{num}{RESET}{DIM}.{RESET} {} {}", opt.icon(), opt);
@@ -162,6 +170,14 @@ fn prompt_menu(options: &[MainMenu]) -> Result<Option<usize>> {
 }
 
 fn prompt_submenu<T: std::fmt::Display>(title: &str, options: &[T]) -> Result<Option<usize>> {
+    // Quick nav: auto-select từ nav queue
+    if let Some(n) = crate::nav::next_nav() {
+        if n == 0 { return Ok(None); }
+        if n <= options.len() { return Ok(Some(n - 1)); }
+        println!("  {RED}✗ Lua chon khong hop le: {n}{RESET}");
+        return Err(AppError::MenuCancelled);
+    }
+
     println!("  {MAGENTA}{BOLD}▸ {title}{RESET}");
     println!("  {MAGENTA}{}{RESET}", "─".repeat(title.len() + 2));
     println!();
@@ -172,7 +188,7 @@ fn prompt_submenu<T: std::fmt::Display>(title: &str, options: &[T]) -> Result<Op
     println!();
 
     match read_input(&format!("  {YELLOW}➜{RESET} Nhap lua chon {DIM}[0=Quay lai, Esc=Thoat]{RESET}: ")) {
-        InputResult::Escape => Err(AppError::MenuCancelled), // Esc trong submenu = thoát hẳn
+        InputResult::Escape => Err(AppError::MenuCancelled),
         InputResult::Number(0) => Ok(None),
         InputResult::Number(n) if n <= options.len() => Ok(Some(n - 1)),
         _ => {
@@ -183,6 +199,8 @@ fn prompt_submenu<T: std::fmt::Display>(title: &str, options: &[T]) -> Result<Op
 }
 
 fn pause() {
+    if crate::nav::is_nav_mode() { return; }
+
     print!("\n  {DIM}Nhan Enter de tiep tuc (Esc = Thoat)...{RESET}");
     io::stdout().flush().ok();
 
@@ -219,7 +237,11 @@ fn pause() {
 }
 
 pub fn interactive_menu() -> Result<()> {
-    enter_alt_screen();
+    let nav_mode = crate::nav::is_nav_mode();
+
+    if !nav_mode {
+        enter_alt_screen();
+    }
 
     let options = vec![
         MainMenu::Nginx,
@@ -230,21 +252,28 @@ pub fn interactive_menu() -> Result<()> {
     ];
 
     loop {
-        clear_screen();
-        show_header();
+        if !nav_mode {
+            clear_screen();
+            show_header();
+        }
 
         let idx = match prompt_menu(&options) {
             Ok(Some(i)) => i,
             Ok(None) => {
-                leave_alt_screen();
-                println!("{GREEN}✔ Tam biet!{RESET}");
+                if !nav_mode { leave_alt_screen(); }
+                if !nav_mode { println!("{GREEN}✔ Tam biet!{RESET}"); }
                 break;
             }
-            Err(_) => continue,
+            Err(_) => {
+                if nav_mode { break; }
+                continue;
+            }
         };
 
-        clear_screen();
-        show_header();
+        if !nav_mode {
+            clear_screen();
+            show_header();
+        }
 
         let result = match options[idx] {
             MainMenu::Nginx => nginx_submenu(),
@@ -253,6 +282,11 @@ pub fn interactive_menu() -> Result<()> {
             MainMenu::Laravel => laravel_submenu(),
             MainMenu::Config => config_submenu(),
         };
+
+        // Nav mode: chạy xong 1 lần thì thoát
+        if nav_mode {
+            return result;
+        }
 
         // Nếu submenu trả Err (Esc) → thoát hẳn
         if let Err(AppError::MenuCancelled) = &result {
@@ -288,6 +322,8 @@ fn ngrok_submenu() -> Result<()> {
 
 fn config_submenu() -> Result<()> {
     use crate::projects::{env_path, load_ngrok_configs, load_nginx_config, load_projects};
+
+    let nav_mode = crate::nav::is_nav_mode();
 
     loop {
         let options = vec![
@@ -339,6 +375,13 @@ fn config_submenu() -> Result<()> {
                 println!("  {DIM}File: {}{RESET}", env_file.display());
             }
             1 => {
+                if nav_mode {
+                    // Nav mode: mở nano trực tiếp không cần alt screen
+                    let _ = std::process::Command::new("nano")
+                        .arg(&env_file)
+                        .status();
+                    return Ok(());
+                }
                 leave_alt_screen();
                 let _ = std::process::Command::new("nano")
                     .arg(&env_file)
@@ -351,6 +394,8 @@ fn config_submenu() -> Result<()> {
             _ => {}
         }
 
+        if nav_mode { return Ok(()); }
+
         pause();
         clear_screen();
         show_header();
@@ -358,11 +403,12 @@ fn config_submenu() -> Result<()> {
 }
 
 fn run_submenu(title: &str, options: Vec<MenuAction>) -> Result<()> {
+    let nav_mode = crate::nav::is_nav_mode();
     loop {
         let idx = match prompt_submenu(title, &options) {
             Ok(Some(i)) => i,
-            Ok(None) => return Ok(()),  // 0 = quay lại menu chính
-            Err(e) => return Err(e),     // Esc = thoát hẳn (bubble up)
+            Ok(None) => return Ok(()),
+            Err(e) => return Err(e),
         };
 
         let choice = options[idx];
@@ -370,6 +416,9 @@ fn run_submenu(title: &str, options: Vec<MenuAction>) -> Result<()> {
         if let Err(e) = choice.execute() {
             eprintln!("  {RED}✗ {e}{RESET}");
         }
+
+        // Nav mode: chạy xong 1 action thì thoát
+        if nav_mode { return Ok(()); }
 
         if choice.needs_pause() {
             pause();

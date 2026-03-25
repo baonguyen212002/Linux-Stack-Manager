@@ -6,6 +6,14 @@ use crate::error::{AppError, Result};
 
 /// Hiển thị danh sách và đọc input. Trả về None nếu nhập 0 (quay lại).
 fn prompt_list(title: &str, options: &[String]) -> Result<Option<usize>> {
+    // Quick nav: auto-select từ nav queue
+    if let Some(n) = crate::nav::next_nav() {
+        if n == 0 { return Ok(None); }
+        if n <= options.len() { return Ok(Some(n - 1)); }
+        println!(" Lua chon khong hop le: {n}");
+        return Err(AppError::MenuCancelled);
+    }
+
     println!();
     println!("{}", title);
     for (i, opt) in options.iter().enumerate() {
